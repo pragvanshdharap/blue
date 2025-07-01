@@ -113,3 +113,135 @@ int main(void) {
 
     return 0;
 }
+
+
+
+-------------------------------------
+
+/* Rotary Encoder with M274 on STM32F4 Discovery (STM32F407VGT6)
+ * CLK: PA0 (EXTI)
+ * DT:  PA1
+ * SW:  PA2 (Optional)
+ * UART2: PA2 (TX), PA3 (RX)
+ */
+
+#include "main.h"
+#include <stdio.h>
+
+#define CLK_Pin        GPIO_PIN_0
+#define CLK_Port       GPIOA
+#define DT_Pin         GPIO_PIN_1
+#define DT_Port        GPIOA
+#define SW_Pin         GPIO_PIN_2
+#define SW_Port        GPIOA
+
+int32_t encoder_count = 0;
+extern UART_HandleTypeDef huart2;
+
+int __io_putchar(int ch) {
+    HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    if (GPIO_Pin == CLK_Pin) {
+        if (HAL_GPIO_ReadPin(DT_Port, DT_Pin) != HAL_GPIO_ReadPin(CLK_Port, CLK_Pin)) {
+            encoder_count++; // Clockwise
+        } else {
+            encoder_count--; // Counter-clockwise
+        }
+        printf("Encoder Count: %ld\r\n", encoder_count);
+    }
+}
+
+int main(void)
+{
+    HAL_Init();
+    SystemClock_Config();
+    MX_GPIO_Init();
+    MX_USART2_UART_Init();
+
+    while (1)
+    {
+        if (HAL_GPIO_ReadPin(SW_Port, SW_Pin) == GPIO_PIN_RESET) {
+            printf("Button Pressed!\r\n");
+            HAL_Delay(300);
+        }
+        HAL_Delay(10);
+    }
+}
+
+void EXTI0_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
+
+void MX_GPIO_Init(void)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    GPIO_InitStruct.Pin = CLK_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(CLK_Port, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = DT_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(DT_Port, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = SW_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(SW_Port, &GPIO_InitStruct);
+
+    HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+}
+
+void MX_USART2_UART_Init(void)
+{
+    huart2.Instance = USART2;
+    huart2.Init.BaudRate = 115200;
+    huart2.Init.WordLength = UART_WORDLENGTH_8B;
+    huart2.Init.StopBits = UART_STOPBITS_1;
+    huart2.Init.Parity = UART_PARITY_NONE;
+    huart2.Init.Mode = UART_MODE_TX_RX;
+    huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+    HAL_UART_Init(&huart2);
+}
+-------------------
+
+int main(void)
+{
+  HAL_Init();
+  SystemClock_Config();
+  MX_GPIO_Init();
+  MX_USART2_UART_Init();
+
+  char uart_buf[64];
+  uint32_t timestamp = 0;
+
+  send_uart("Time(ms),Tilt_Status\r\n");  // CSV header
+
+  while (1)
+  {
+    GPIO_PinState tilt = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+
+    if (tilt == GPIO_PIN_RESET) {
+      HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);  // LED ON
+      snprintf(uart_buf, sizeof(uart_buf), "%lu,TILT\r\n", timestamp);
+    } else {
+      HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET); // LED OFF
+      snprintf(uart_buf, sizeof(uart_buf), "%lu,NO_TILT\r\n", timestamp);
+    }
+
+    send_uart(uart_buf);
+    HAL_Delay(500);
+    timestamp += 500;
+  }
+}
+----------------------
+
