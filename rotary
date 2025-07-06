@@ -1,0 +1,51 @@
+// KY-040 Rotary Encoder with Arduino Uno
+
+#define CLK 2  // Clock pin
+#define DT 3   // Data pin
+#define SW 4   // Switch pin (optional)
+
+int counter = 0;
+int currentStateCLK;
+int lastStateCLK;
+String currentDir = "";
+
+void setup() {
+  pinMode(CLK, INPUT);
+  pinMode(DT, INPUT);
+  pinMode(SW, INPUT_PULLUP); // Pushbutton uses internal pull-up
+
+  Serial.begin(9600);
+
+  lastStateCLK = digitalRead(CLK);
+}
+
+void loop() {
+  currentStateCLK = digitalRead(CLK);
+
+  // If CLK changed state
+  if (currentStateCLK != lastStateCLK) {
+    // If DT is different than CLK, it's CW; else CCW
+    if (digitalRead(DT) != currentStateCLK) {
+      counter++;
+      currentDir = "CW";
+    } else {
+      counter--;
+      currentDir = "CCW";
+    }
+
+    Serial.print("Direction: ");
+    Serial.print(currentDir);
+    Serial.print(" | Counter: ");
+    Serial.println(counter);
+  }
+
+  lastStateCLK = currentStateCLK;
+
+  // Optional: check push button
+  if (digitalRead(SW) == LOW) {
+    Serial.println("Button Pressed");
+    delay(200); // Debounce
+  }
+
+  delay(1);
+}
