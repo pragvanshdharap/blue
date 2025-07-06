@@ -49,3 +49,4 @@ void loop() {
 
   delay(1);
 }
+https://www.st.com/en/embedded-software/stm32cubef4.html
