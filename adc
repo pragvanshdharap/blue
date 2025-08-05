@@ -1,0 +1,466 @@
+1.
+## ✅ GOAL
+
+* **No TI GUI** – direct setup via STM32.
+* **No interrupts** – just polling.
+* Use **STM32CubeMX + STM32CubeIDE** for configuration and coding.
+* Setup **SPI1 → ADC1**, **SPI2 → ADC2**.
+* Log ADC data over **UART** (via FTDI or ST-Link VCP).
+
+---
+
+## 🧩 HARDWARE CONNECTIONS
+
+### 📌 STM32F407 SPI1 (ADC1)
+
+| STM32 Pin | Connects To (ADC1) | Notes               |
+| --------- | ------------------ | ------------------- |
+| PA5       | SCLK               | SPI1\_SCK           |
+| PA6       | MISO               | SPI1\_MISO          |
+| PA7       | MOSI               | SPI1\_MOSI          |
+| PA4       | CS                 | Manual GPIO         |
+| PB0       | DRDY               | Input (optional)    |
+| GND       | GND                | Common Ground       |
+| 3.3V/5V   | VCC                | Power (match level) |
+
+### 📌 STM32F407 SPI2 (ADC2)
+
+| STM32 Pin | Connects To (ADC2) | Notes               |
+| --------- | ------------------ | ------------------- |
+| PB13      | SCLK               | SPI2\_SCK           |
+| PB14      | MISO               | SPI2\_MISO          |
+| PB15      | MOSI               | SPI2\_MOSI          |
+| PB12      | CS                 | Manual GPIO         |
+| PE4       | DRDY               | Input (optional)    |
+| GND       | GND                | Common Ground       |
+| 3.3V/5V   | VCC                | Power (match level) |
+
+### 📌 UART for Debug Output
+
+| STM32 Pin | Connects To | Notes       |
+| --------- | ----------- | ----------- |
+| PA9       | FTDI TX     | UART1\_TX   |
+| GND       | FTDI GND    | UART Ground |
+
+---
+
+## 🛠️ STM32CubeMX CONFIGURATION
+
+1. **SPI1, SPI2** → Full Duplex Master
+
+   * Prescaler: 32 (slow SPI for debugging)
+   * CPOL: 0
+   * CPHA: 1 (**Mode 1** for ADS131M08)
+
+2. **UART1**
+
+   * Baud: 115200
+   * TX enabled
+
+3. **GPIO**
+
+   * PA4, PB12: Output (used as CS for ADC1 and ADC2)
+   * PB0, PE4: Input (optional: DRDY pin from ADC)
+
+4. **System Core → RCC**
+
+   * HSE: Crystal/Ceramic Resonator (if available)
+   * SYSCLK: 168 MHz
+
+5. **Middleware**
+
+   * None (no FreeRTOS for now)
+
+---
+
+## 📦 CODE OVERVIEW
+
+I'll now give you working STM32 code to:
+
+* Initialize both ADCs
+* Read data over SPI
+* Send parsed data via UART
+* Poll without interrupts
+
+---
+
+## ✅ MAIN CODE (All in `main.c`)
+
+### 1️⃣ Includes and Handles
+
+```c
+#include "main.h"
+#include <stdio.h>
+#include <string.h>
+
+extern SPI_HandleTypeDef hspi1;
+extern SPI_HandleTypeDef hspi2;
+extern UART_HandleTypeDef huart1;
+
+#define CS1_LOW()   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET)
+#define CS1_HIGH()  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET)
+#define CS2_LOW()   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET)
+#define CS2_HIGH()  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET)
+
+uint8_t tx_buf[3] = {0x12, 0x34, 0x56};  // dummy example command
+uint8_t rx_buf[24];  // ADS131M08 outputs 3 bytes per channel × 8 = 24 bytes
+```
+
+---
+
+### 2️⃣ Function to Send SPI Command and Receive ADC Data
+
+```c
+void ADS131_Read(SPI_HandleTypeDef *hspi, uint8_t *rx)
+{
+    uint8_t tx[24] = {0x00};  // dummy bytes
+    HAL_SPI_TransmitReceive(hspi, tx, rx, 24, HAL_MAX_DELAY);
+}
+```
+
+---
+
+### 3️⃣ UART Print Function
+
+```c
+void print_uart(const char* msg)
+{
+    HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+}
+```
+
+---
+
+### 4️⃣ Main Application Logic
+
+```c
+int main(void)
+{
+    HAL_Init();
+    SystemClock_Config();
+    MX_GPIO_Init();
+    MX_SPI1_Init();
+    MX_SPI2_Init();
+    MX_USART1_UART_Init();
+
+    CS1_HIGH();  // idle
+    CS2_HIGH();  // idle
+
+    print_uart("Starting ADC read loop...\r\n");
+
+    while (1)
+    {
+        // --- Read from ADC1 ---
+        CS1_LOW();
+        HAL_Delay(1);
+        ADS131_Read(&hspi1, rx_buf);
+        CS1_HIGH();
+
+        char msg[128];
+        snprintf(msg, sizeof(msg), "ADC1 CH1: 0x%02X%02X%02X\r\n",
+                 rx_buf[0], rx_buf[1], rx_buf[2]);
+        print_uart(msg);
+
+        // --- Read from ADC2 ---
+        CS2_LOW();
+        HAL_Delay(1);
+        ADS131_Read(&hspi2, rx_buf);
+        CS2_HIGH();
+
+        snprintf(msg, sizeof(msg), "ADC2 CH1: 0x%02X%02X%02X\r\n",
+                 rx_buf[0], rx_buf[1], rx_buf[2]);
+        print_uart(msg);
+
+        HAL_Delay(500);
+    }
+}
+```
+
+---
+
+## 🧪 TESTING OUTPUT
+
+* Open **PuTTY** or **Tera Term**
+* Select correct COM port
+* Set **115200 baud**
+* You’ll see something like:
+
+```
+Starting ADC read loop...
+ADC1 CH1: 0x01A2F4
+ADC2 CH1: 0x0198C1
+...
+```
+
+---
+
+## 🧠 WHAT THIS DOES
+
+| Step | Description                                                                                                                                                            |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Init | SPI1, SPI2, UART1, GPIO                                                                                                                                                |
+| Loop | - Pull CS low for ADC<br> - Send 24 dummy bytes<br> - Receive 24 bytes (3 per channel × 8)<br> - Parse channel 1 value<br> - Send via UART<br> - Repeat for second ADC |
+
+---
+
+## 🔄 NEXT STEPS
+
+1. **Decode 24-bit values** to voltage (signed 2’s complement → float)
+2. **Add per-channel parsing**
+3. **Add CSV formatting**
+4. **Log to PC via Python** or SD card
+
+---
+
+
+
+
+
+
+2.
+Great question, Pragvansh!
+
+You're absolutely right — each **ADS131M08** ADC board has **8 independent differential channels**, and you’re using **two boards**. So in total, you're reading from **16 ADC channels**.
+
+Now the question is:
+
+---
+
+## ❓ How do we **classify data per ADC board and per channel**?
+
+### 👉 The key lies in the **data format** sent by the ADC over SPI:
+
+* The **ADS131M08** outputs **24 bits per channel**, total of **8 channels**.
+* So for **each frame**, you receive:
+
+  ```
+  8 channels × 3 bytes = 24 bytes
+  ```
+
+---
+
+## 🧩 Classification Strategy
+
+### 🔹 Data From One ADC Board
+
+* When you read 24 bytes from an ADC board over SPI, you know:
+
+  * **Bytes 0–2 → Channel 1**
+  * **Bytes 3–5 → Channel 2**
+  * ...
+  * **Bytes 21–23 → Channel 8**
+
+### 🔹 Example: Interpreting Received Data
+
+Let’s say you received these 24 bytes:
+
+```c
+rx_buf[0] = 0x01;
+rx_buf[1] = 0xA2;
+rx_buf[2] = 0xF4;  // → Channel 1
+
+rx_buf[3] = 0x01;
+rx_buf[4] = 0xA5;
+rx_buf[5] = 0x01;  // → Channel 2
+
+...
+```
+
+Each 3-byte segment represents **one signed 24-bit ADC sample**, which you can decode like this:
+
+---
+
+## 📥 Decoding 24-bit Signed ADC Values
+
+Here’s a helper function to decode each 3-byte segment into a **signed 32-bit integer**:
+
+```c
+int32_t decode_24bit(uint8_t *data)
+{
+    int32_t val = ((int32_t)data[0] << 16) | ((int32_t)data[1] << 8) | data[2];
+
+    // Sign extension for 24-bit signed number
+    if (val & 0x800000)
+        val |= 0xFF000000;
+
+    return val;
+}
+```
+
+### 🧪 Example usage
+
+```c
+int32_t ch1 = decode_24bit(&rx_buf[0]);
+int32_t ch2 = decode_24bit(&rx_buf[3]);
+...
+```
+
+---
+
+## 🧭 Naming Convention
+
+To classify data:
+
+* Prefix with **ADC board ID** (ADC1 / ADC2)
+* Append **channel number** (CH1–CH8)
+
+Example log output:
+
+```
+ADC1_CH1: -12345
+ADC1_CH2:  10983
+...
+ADC2_CH1: -08333
+ADC2_CH2:  08764
+...
+```
+
+---
+
+## 🗃️ OPTIONAL: Save As Structured CSV
+
+For 2 ADC boards × 8 channels:
+
+```csv
+Timestamp,ADC1_CH1,ADC1_CH2,...,ADC2_CH8
+1691234567,-12345,10983,...,3210
+```
+
+---
+
+## 🧠 Summary
+
+| Concept            | Explanation                  |
+| ------------------ | ---------------------------- |
+| 1 ADC board =      | 8 channels                   |
+| Each channel =     | 3 bytes (24 bits)            |
+| 1 full ADC frame = | 24 bytes                     |
+| Classify using     | Channel index + ADC board ID |
+| Decode values as   | Signed 24-bit integers       |
+| Optionally log as  | CSV for plotting or analysis |
+
+---
+
+
+3.
+Here you go Pragvansh — here’s a simple and clean way to decode **all 8 channels** from the **ADS131M08** in one go.
+
+---
+
+## ✅ Function: Decode All 8 Channels from 24-byte SPI Frame
+
+Add this to your `main.c` or a separate ADC utility file:
+
+```c
+#include <stdint.h>
+
+#define NUM_CHANNELS 8
+
+// Function to decode 24-bit signed value from 3 bytes
+int32_t decode_24bit(uint8_t *data)
+{
+    int32_t val = ((int32_t)data[0] << 16) | ((int32_t)data[1] << 8) | data[2];
+
+    // Sign-extend 24-bit to 32-bit if negative
+    if (val & 0x800000)
+        val |= 0xFF000000;
+
+    return val;
+}
+
+// Function to decode all 8 channels
+void decode_all_channels(uint8_t *rx_buf, int32_t *ch_values)
+{
+    for (int i = 0; i < NUM_CHANNELS; i++)
+    {
+        ch_values[i] = decode_24bit(&rx_buf[i * 3]);
+    }
+}
+```
+
+---
+
+## 🧪 Example Usage in `main.c`
+
+```c
+uint8_t rx_buf[24];             // Received SPI buffer (3 bytes × 8 channels)
+int32_t ch_values[8];           // Decoded values for all 8 channels
+
+// After SPI receive
+ADS131_Read(&hspi1, rx_buf);    // Read 24 bytes from SPI
+decode_all_channels(rx_buf, ch_values);
+
+// Print all channels
+for (int i = 0; i < 8; i++)
+{
+    char msg[64];
+    snprintf(msg, sizeof(msg), "ADC1_CH%d: %ld\r\n", i + 1, ch_values[i]);
+    print_uart(msg);
+}
+```
+
+---
+
+## 🧭 Output Example (over UART)
+
+```
+ADC1_CH1: -123456
+ADC1_CH2:  839291
+ADC1_CH3:  -84729
+...
+ADC1_CH8:  98123
+```
+
+Repeat the same for ADC2 by calling:
+
+```c
+ADS131_Read(&hspi2, rx_buf);
+decode_all_channels(rx_buf, ch_values);
+// Then print as ADC2_CH1, CH2, ..., CH8
+```
+
+---
+
+## 🔁 Integration Tip
+
+You can even wrap it in a higher-level function like:
+
+```c
+void read_adc_board(SPI_HandleTypeDef *hspi, const char *adc_label)
+{
+    uint8_t rx_buf[24];
+    int32_t ch_values[8];
+
+    ADS131_Read(hspi, rx_buf);
+    decode_all_channels(rx_buf, ch_values);
+
+    for (int i = 0; i < 8; i++)
+    {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "%s_CH%d: %ld\r\n", adc_label, i + 1, ch_values[i]);
+        print_uart(msg);
+    }
+}
+```
+
+Usage:
+
+```c
+read_adc_board(&hspi1, "ADC1");
+read_adc_board(&hspi2, "ADC2");
+```
+
+---
+
+## ✅ Done!
+
+This gives you:
+
+* Clean decoding of all 8 channels
+* Uniform UART output for both ADC boards
+* Easily extensible for CSV or JSON output
+
+---
+
+
+
