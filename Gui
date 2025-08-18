@@ -1,0 +1,827 @@
+import sys
+import random
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+                             QHBoxLayout, QLabel, QLineEdit, QPushButton,
+                             QFrame, QSpacerItem, QSizePolicy, QTreeWidget,
+                             QTreeWidgetItem, QProgressBar, QSplitter)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QFont, QPalette, QColor, QIcon
+
+
+class MilitaryLoginWindow(QMainWindow):
+    # Signal to communicate with main window
+    login_successful = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+    def init_ui(self):
+        # Set window properties
+        self.setWindowTitle("LOGIN WINDOW")
+        self.setFixedSize(450, 600)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+
+        # Create central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        # Main layout
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Create and add the login frame
+        login_frame = self.create_login_frame()
+        main_layout.addWidget(login_frame)
+
+        # Apply military styling
+        self.apply_military_style()
+
+        # Center the window on screen
+        self.center_window()
+
+    def create_login_frame(self):
+        # Main frame
+        frame = QFrame()
+        frame.setObjectName("loginFrame")
+
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(20)
+
+        # Top spacer
+        layout.addItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+
+        # Header section
+        header_layout = QVBoxLayout()
+        header_layout.setSpacing(10)
+
+        # Main title
+        title_label = QLabel("CLASSIFIED ACCESS")
+        title_label.setObjectName("titleLabel")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(title_label)
+
+        # Subtitle
+        subtitle_label = QLabel("AUTHORIZED PERSONNEL ONLY")
+        subtitle_label.setObjectName("subtitleLabel")
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(subtitle_label)
+
+        # Security indicator
+        security_label = QLabel("● SECURITY LEVEL: CLASSIFIED")
+        security_label.setObjectName("securityLabel")
+        security_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(security_label)
+
+        layout.addLayout(header_layout)
+
+        # Middle spacer
+        layout.addItem(QSpacerItem(20, 30, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        # Form section
+        form_layout = QVBoxLayout()
+        form_layout.setSpacing(15)
+
+        # Username field
+        username_label = QLabel("USERNAME:")
+        username_label.setObjectName("fieldLabel")
+        form_layout.addWidget(username_label)
+
+        self.username_input = QLineEdit()
+        self.username_input.setObjectName("inputField")
+        self.username_input.setPlaceholderText("Enter your username")
+        form_layout.addWidget(self.username_input)
+
+        # Password field
+        password_label = QLabel("PASSWORD:")
+        password_label.setObjectName("fieldLabel")
+        form_layout.addWidget(password_label)
+
+        self.password_input = QLineEdit()
+        self.password_input.setObjectName("inputField")
+        self.password_input.setPlaceholderText("Enter your password")
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        form_layout.addWidget(self.password_input)
+
+        layout.addLayout(form_layout)
+
+        # Button section
+        button_layout = QVBoxLayout()
+        button_layout.setSpacing(10)
+
+        # Login button
+        login_btn = QPushButton("AUTHENTICATE")
+        login_btn.setObjectName("loginButton")
+        login_btn.clicked.connect(self.authenticate)
+        button_layout.addWidget(login_btn)
+
+        # Cancel button
+        cancel_btn = QPushButton("ABORT")
+        cancel_btn.setObjectName("cancelButton")
+        cancel_btn.clicked.connect(self.close)
+        button_layout.addWidget(cancel_btn)
+
+        layout.addLayout(button_layout)
+
+        # Status label
+        self.status_label = QLabel("")
+        self.status_label.setObjectName("statusLabel")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.status_label)
+
+        # Bottom spacer
+        layout.addItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+
+        # Footer
+        footer_label = QLabel("SYSTEM v2.1.7 | SECURE TERMINAL")
+        footer_label.setObjectName("footerLabel")
+        footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(footer_label)
+
+        return frame
+
+    def apply_military_style(self):
+        style = """
+        QMainWindow {
+            background-color: #2b2d2f;
+        }
+
+        #loginFrame {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #3a3d40, stop:1 #2b2d2f);
+            border: 2px solid #5a6b3b;
+            border-radius: 8px;
+        }
+
+        #titleLabel {
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: bold;
+            color: #9ccc65;
+            padding: 10px;
+            background-color: rgba(92, 107, 59, 0.3);
+            border: 1px solid #5a6b3b;
+            border-radius: 4px;
+        }
+
+        #subtitleLabel {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffcc02;
+            letter-spacing: 2px;
+        }
+
+        #securityLabel {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #ff5722;
+            font-weight: bold;
+        }
+
+        #fieldLabel {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: bold;
+            color: #c5c8c6;
+            letter-spacing: 1px;
+        }
+
+        #inputField {
+            background-color: #1e1e1e;
+            border: 2px solid #5a6b3b;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #9ccc65;
+            selection-background-color: #5a6b3b;
+        }
+
+        #inputField:focus {
+            border-color: #9ccc65;
+            background-color: #262626;
+        }
+
+        #inputField::placeholder {
+            color: #666;
+        }
+
+        #loginButton {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #6b8e23, stop:1 #556b2f);
+            border: 2px solid #5a6b3b;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffffff;
+            letter-spacing: 1px;
+        }
+
+        #loginButton:hover {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #7ba428, stop:1 #5f7532);
+            border-color: #9ccc65;
+        }
+
+        #loginButton:pressed {
+            background-color: #4a5a2a;
+        }
+
+        #cancelButton {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #8b4513, stop:1 #654321);
+            border: 2px solid #8b4513;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffffff;
+            letter-spacing: 1px;
+        }
+
+        #cancelButton:hover {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #a0522d, stop:1 #704a26);
+            border-color: #cd853f;
+        }
+
+        #cancelButton:pressed {
+            background-color: #5d4037;
+        }
+
+        #statusLabel {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        #footerLabel {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #666;
+            padding: 5px;
+        }
+        """
+        self.setStyleSheet(style)
+
+    def center_window(self):
+        """Center the window on the screen"""
+        screen = QApplication.primaryScreen().geometry()
+        window = self.geometry()
+        x = (screen.width() - window.width()) // 2
+        y = (screen.height() - window.height()) // 2
+        self.move(x, y)
+
+    def authenticate(self):
+        """Handle authentication attempt"""
+        username = self.username_input.text().strip()
+        password = self.password_input.text().strip()
+
+        if not username or not password:
+            self.show_status("ERROR: INCOMPLETE CREDENTIALS", "#ff5722")
+            return
+
+        # Simple authentication check (replace with your actual authentication logic)
+        if username.lower() == "admin" and password == "password":
+            self.show_status("ACCESS GRANTED", "#4caf50")
+            # Emit signal to open main window
+            self.login_successful.emit()
+            self.hide()
+        else:
+            self.show_status("ACCESS DENIED: INVALID CREDENTIALS", "#ff5722")
+            self.password_input.clear()
+
+    def show_status(self, message, color):
+        """Show status message with color"""
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet(f"""
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            font-weight: bold;
+            color: {color};
+            padding: 8px;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.1);
+        """)
+
+
+class MilitaryMainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+        self.init_system_monitoring()
+
+    def init_ui(self):
+        # Set window properties
+        self.setWindowTitle("SHM")
+        self.setGeometry(100, 100, 1200, 800)
+        self.setMinimumSize(1000, 700)
+
+        # Create central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        # Main layout
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+
+        # Create sections
+        self.create_top_buttons(main_layout)
+        self.create_hierarchy_tree(main_layout)
+        self.create_status_bar(main_layout)
+
+        # Apply military styling
+        self.apply_main_window_style()
+
+    def create_top_buttons(self, parent_layout):
+        """Create 5 buttons at the top"""
+        button_frame = QFrame()
+        button_frame.setObjectName("buttonFrame")
+        button_frame.setFixedHeight(80)
+
+        button_layout = QHBoxLayout(button_frame)
+        button_layout.setContentsMargins(20, 15, 20, 15)
+        button_layout.setSpacing(15)
+
+        # Button configurations
+        buttons_config = [
+            ("HOME", "#4a90e2"),
+            ("SENSORS", "#f5a623"),
+            ("STM", "#7ed321"),
+            ("RASPBERRY PI", "#bd10e0"),
+            ("SETTINGS", "#b8e986")
+        ]
+
+        for i, (name, color) in enumerate(buttons_config):
+            btn = QPushButton(name)
+            btn.setObjectName(f"topButton{i}")
+            btn.clicked.connect(lambda checked, n=name: self.handle_button_click(n))
+            button_layout.addWidget(btn)
+
+        parent_layout.addWidget(button_frame)
+
+    def create_hierarchy_tree(self, parent_layout):
+        """Create hierarchy tree in the middle"""
+        tree_frame = QFrame()
+        tree_frame.setObjectName("treeFrame")
+
+        tree_layout = QVBoxLayout(tree_frame)
+        tree_layout.setContentsMargins(15, 15, 15, 15)
+        tree_layout.setSpacing(10)
+
+        # Tree title
+        tree_title = QLabel("ATAGS STRUCTURE HIERARCHY")
+        tree_title.setObjectName("treeTitle")
+        tree_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tree_layout.addWidget(tree_title)
+
+        # Create tree widget
+        self.tree_widget = QTreeWidget()
+        self.tree_widget.setObjectName("hierarchyTree")
+        self.tree_widget.setHeaderLabel("ATAGS HIERARCHY")
+        self.tree_widget.setAlternatingRowColors(True)
+        self.tree_widget.setIndentation(30)
+        self.tree_widget.setRootIsDecorated(True)
+        self.tree_widget.setExpandsOnDoubleClick(True)
+
+        # Set minimum height for tree
+        self.tree_widget.setMinimumHeight(350)
+
+        # Populate tree with military hierarchy
+        self.populate_tree()
+
+        tree_layout.addWidget(self.tree_widget)
+        parent_layout.addWidget(tree_frame)
+
+    def populate_tree(self):
+        """Populate the tree with detailed military hierarchy"""
+        # Main Command structure
+        command = QTreeWidgetItem(self.tree_widget, ["ATAGS"])
+        command.setExpanded(True)
+
+        # High Command Level
+        high_command = QTreeWidgetItem(command, ["UPPER CARRIAGE"])
+        craddle = QTreeWidgetItem(high_command, ["CRADDLE ASSEMBLY"])
+        QTreeWidgetItem(craddle, ["CRADDLE STRUCTURE"])
+        QTreeWidgetItem(craddle, ["TRUNNION PINS"])
+        QTreeWidgetItem(craddle, ["EQUILIBRATORS"])
+        QTreeWidgetItem(craddle, ["PENDULUM MECHANISM"])
+        QTreeWidgetItem(craddle, ["LOADING TRAY"])
+        QTreeWidgetItem(craddle, ["SHELL RAMMER MECHANISM"])
+        QTreeWidgetItem(craddle, ["PRIMR MECHANISM"])
+        QTreeWidgetItem(craddle, ["FIRING UNIT"])
+        ordanance = QTreeWidgetItem(high_command, ["ORDANANCE & RECOIL"])
+        QTreeWidgetItem(ordanance, ["BARREL"])
+        QTreeWidgetItem(ordanance, ["BREECH MECHANISM"])
+        QTreeWidgetItem(ordanance, ["RECOIL ASSEMBLY"])
+        QTreeWidgetItem(ordanance, ["MUZZLE BRAKE"])
+        elec = QTreeWidgetItem(high_command, ["ELECTRONIC MODULE"])
+        QTreeWidgetItem(elec, ["MVR"])
+        QTreeWidgetItem(elec, ["AGAPS"])
+        QTreeWidgetItem(elec, ["VDCU"])
+        QTreeWidgetItem(elec, ["SDR"])
+        QTreeWidgetItem(elec, ["OPTRONIC SIGHT"])
+        QTreeWidgetItem(elec, ["DIAL SIGHT"])
+        QTreeWidgetItem(elec, ["TELESCOPE"])
+        QTreeWidgetItem(elec, ["REPLINISHER"])
+        saddle = QTreeWidgetItem(high_command, ["SADDLE ASSEMBLY"])
+        QTreeWidgetItem(saddle, ["SADDLE STRUCTURE"])
+        QTreeWidgetItem(saddle, ["ELEVATION MECHANISM"])
+        QTreeWidgetItem(saddle, ["TRAVERSE MECHANISM"])
+        QTreeWidgetItem(saddle, ["LAYER'S STATION"])
+        QTreeWidgetItem(saddle, ["LOADER'S STATION"])
+        QTreeWidgetItem(saddle, ["ELEVATION ACTUATORS"])
+        QTreeWidgetItem(saddle, ["SLEW BEARING"])
+        QTreeWidgetItem(saddle, ["LOADING TABLE"])
+        QTreeWidgetItem(saddle, ["AMMUNITION CRANE"])
+
+        high_command.setExpanded(True)
+
+        # Operations Division
+        operations = QTreeWidgetItem(command, ["UNDER CARRIAGE"])
+
+        # Field Units
+        field_units = QTreeWidgetItem(operations, ["UNDER CARRIAGE ASSEMBLY"])
+        alpha_squad = QTreeWidgetItem(field_units, ["WHEEL CARRIAGE & SUSPENSION UNIT"])
+        QTreeWidgetItem(alpha_squad, ["SUSPENSION UNIT"])
+        QTreeWidgetItem(alpha_squad, ["TRIANGULAR STAY"])
+        wheel_carriage = QTreeWidgetItem(alpha_squad, ["WHEEL CARRIAGE WITH DRIVE UNIT"])
+        drive_unit = QTreeWidgetItem(wheel_carriage, ["DRIVE UNIT ASSEMBLY"])
+        QTreeWidgetItem(drive_unit, ["HUB REDUCTION GEAR"])
+        QTreeWidgetItem(drive_unit, ["HYDRAULIC MOTOR"])
+        brake_cylinder = QTreeWidgetItem(wheel_carriage, ["BRAKE CYLINDER ASSEMBLY"])
+        QTreeWidgetItem(brake_cylinder, ["BRAKE CYLINDER LH & RH"])
+
+        bravo_squad = QTreeWidgetItem(field_units, ["AUXILLARY POWER UNIT"])
+        engine_unit = QTreeWidgetItem(bravo_squad, ["ENGINE UNIT"])
+        QTreeWidgetItem( engine_unit, ["ENGINE_UNIT"])
+        QTreeWidgetItem( engine_unit, ["FUEL UNIT"])
+        QTreeWidgetItem(engine_unit, ["EXHAUST SYSTEM"])
+        QTreeWidgetItem(engine_unit, ["AIR INTAKE SYSTEM"])
+        QTreeWidgetItem(engine_unit, ["COOLING SYSTEM"])
+        pump_unit = QTreeWidgetItem(bravo_squad, ["PUMP UNIT"])
+        QTreeWidgetItem(pump_unit, ["HYDRAULIC TANK"])
+        QTreeWidgetItem(pump_unit, ["ELECTRO-HYDRAULIC"])
+        QTreeWidgetItem(pump_unit, ["PUMP"])
+        QTreeWidgetItem(pump_unit, ["PUMP GEAR PISTON"])
+        QTreeWidgetItem(pump_unit, ["VALVE PANEL"])
+        QTreeWidgetItem(pump_unit, ["VALVE BLOCK"])
+        battery_unit = QTreeWidgetItem(bravo_squad, ["BATTERY UNIT"])
+        QTreeWidgetItem(battery_unit, ["ELECTRICAL SYSTEM"])
+        QTreeWidgetItem(battery_unit, ["BATTERY COMPONENT"])
+        QTreeWidgetItem(battery_unit, ["JUNCTION BOX"])
+        QTreeWidgetItem(battery_unit, ["ALTERNATOR"])
+        QTreeWidgetItem(battery_unit, ["POWER ELECTRONICS"])
+
+        spec_ops = QTreeWidgetItem(operations, ["UNDER_CARRIAGE"])
+        QTreeWidgetItem(spec_ops, ["CHASSIS"])
+        QTreeWidgetItem(spec_ops, ["SLEWING BEARING"])
+        QTreeWidgetItem(spec_ops, ["CENTRAL PLATFORM"])
+
+        intel = QTreeWidgetItem(operations, ["TRAIL TRAVERSING CYLINDER"])
+
+        analysis = QTreeWidgetItem(operations, ["TRAIL ASSEMBLY"])
+        QTreeWidgetItem(analysis, ["TRAIL LEFT & RIGHT"])
+        QTreeWidgetItem(analysis, ["TRAIL SPADE LEFT & RIGHT"])
+        QTreeWidgetItem(analysis, ["CASTOR WHEEL LEFT & RIGHT"])
+        QTreeWidgetItem(analysis, ["HYDRAULIC CYLINDER CASTOR WHEEL"])
+        QTreeWidgetItem(analysis, ["LOCKING BAR TRAILS"])
+
+        surv = QTreeWidgetItem(operations, ["DRAWBAR ASSEMBLY"])
+        QTreeWidgetItem(surv, ["UPPER LOWER LINK"])
+        QTreeWidgetItem(surv, ["CLAMP"])
+        QTreeWidgetItem(surv, ["TOWING EYE"])
+        QTreeWidgetItem(surv, ["LOCKING CRANK"])
+
+        hyr = QTreeWidgetItem(operations, ["HYDRAULIC-ELECTRICAL"])
+
+        operations.setExpanded(True)
+        field_units.setExpanded(True)
+
+        # Expand main command by default
+        command.setExpanded(True)
+
+        # Set different colors for different levels
+        self.set_tree_item_colors()
+
+    def create_status_bar(self, parent_layout):
+        """Create system health status at the bottom"""
+        status_frame = QFrame()
+        status_frame.setObjectName("statusFrame")
+        status_frame.setFixedHeight(120)
+
+        status_layout = QVBoxLayout(status_frame)
+        status_layout.setContentsMargins(20, 15, 20, 15)
+        status_layout.setSpacing(8)
+
+        # Status title
+        status_title = QLabel("SYSTEM STATUS MONITOR")
+        status_title.setObjectName("statusTitle")
+        status_layout.addWidget(status_title)
+
+        # Create status indicators
+        indicators_layout = QHBoxLayout()
+        indicators_layout.setSpacing(20)
+
+        # CPU Status
+        cpu_layout = QVBoxLayout()
+        cpu_label = QLabel("CPU")
+        cpu_label.setObjectName("statusLabel")
+        self.cpu_bar = QProgressBar()
+        self.cpu_bar.setObjectName("cpuBar")
+        cpu_layout.addWidget(cpu_label)
+        cpu_layout.addWidget(self.cpu_bar)
+        indicators_layout.addLayout(cpu_layout)
+
+        # Memory Status
+        mem_layout = QVBoxLayout()
+        mem_label = QLabel("MEMORY")
+        mem_label.setObjectName("statusLabel")
+        self.mem_bar = QProgressBar()
+        self.mem_bar.setObjectName("memBar")
+        mem_layout.addWidget(mem_label)
+        mem_layout.addWidget(self.mem_bar)
+        indicators_layout.addLayout(mem_layout)
+
+        # Network Status
+        net_layout = QVBoxLayout()
+        net_label = QLabel("NETWORK")
+        net_label.setObjectName("statusLabel")
+        self.net_bar = QProgressBar()
+        self.net_bar.setObjectName("netBar")
+        net_layout.addWidget(net_label)
+        net_layout.addWidget(self.net_bar)
+        indicators_layout.addLayout(net_layout)
+
+        # Security Status
+        sec_layout = QVBoxLayout()
+        sec_label = QLabel("SECURITY")
+        sec_label.setObjectName("statusLabel")
+        self.sec_bar = QProgressBar()
+        self.sec_bar.setObjectName("secBar")
+        sec_layout.addWidget(sec_label)
+        sec_layout.addWidget(self.sec_bar)
+        indicators_layout.addLayout(sec_layout)
+
+        status_layout.addLayout(indicators_layout)
+
+        # Overall status
+        self.overall_status = QLabel("ALL SYSTEMS OPERATIONAL")
+        self.overall_status.setObjectName("overallStatus")
+        self.overall_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_layout.addWidget(self.overall_status)
+
+        parent_layout.addWidget(status_frame)
+
+    def init_system_monitoring(self):
+        """Initialize system monitoring with random values"""
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_system_status)
+        self.timer.start(2000)  # Update every 2 seconds
+
+        # Initial values
+        self.update_system_status()
+
+    def update_system_status(self):
+        """Update system status with simulated values"""
+        # Generate random but realistic values
+        cpu_val = random.randint(15, 85)
+        mem_val = random.randint(30, 75)
+        net_val = random.randint(60, 100)
+        sec_val = random.randint(85, 100)
+
+        self.cpu_bar.setValue(cpu_val)
+        self.mem_bar.setValue(mem_val)
+        self.net_bar.setValue(net_val)
+        self.sec_bar.setValue(sec_val)
+
+        # Update overall status based on values
+        avg_health = (cpu_val + mem_val + net_val + sec_val) / 4
+
+        if avg_health >= 80:
+            self.overall_status.setText("ALL SYSTEMS OPERATIONAL")
+            self.overall_status.setStyleSheet("color: #4caf50; font-weight: bold;")
+        elif avg_health >= 60:
+            self.overall_status.setText("SYSTEMS NOMINAL - MINOR ISSUES")
+            self.overall_status.setStyleSheet("color: #ffcc02; font-weight: bold;")
+        else:
+            self.overall_status.setText("WARNING - SYSTEM DEGRADATION")
+            self.overall_status.setStyleSheet("color: #ff5722; font-weight: bold;")
+
+    def set_tree_item_colors(self):
+        """Set different colors for tree items based on hierarchy level"""
+        # This method can be used to customize tree item appearance
+        pass
+
+    def handle_button_click(self, button_name):
+        """Handle button clicks"""
+        print(f"Button clicked: {button_name}")
+        # Update tree based on button clicked
+        if button_name == "SURVEILLANCE":
+            self.highlight_tree_section("👁️ SURVEILLANCE BRANCH")
+        elif button_name == "INTEL":
+            self.highlight_tree_section("🧠 INTELLIGENCE DIVISION")
+        elif button_name == "OPERATIONS":
+            self.highlight_tree_section("🎯 OPERATIONS DIVISION")
+        elif button_name == "COMMUNICATIONS":
+            self.highlight_tree_section("📡 COMMUNICATIONS DIVISION")
+        elif button_name == "SYSTEMS":
+            self.highlight_tree_section("⚙️ SYSTEMS DIVISION")
+
+    def highlight_tree_section(self, section_name):
+        """Highlight and expand specific tree section"""
+        # Find and highlight the section
+        items = self.tree_widget.findItems(section_name, Qt.MatchFlag.MatchRecursive | Qt.MatchFlag.MatchContains)
+        if items:
+            item = items[0]
+            self.tree_widget.setCurrentItem(item)
+            item.setExpanded(True)
+            # Scroll to the item
+            self.tree_widget.scrollToItem(item)
+
+    def apply_main_window_style(self):
+        """Apply military styling to main window"""
+        style = """
+        QMainWindow {
+            background-color: #1e2124;
+        }
+
+        #buttonFrame {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #36393f, stop:1 #2f3136);
+            border: 2px solid #5a6b3b;
+            border-radius: 8px;
+        }
+
+        QPushButton[objectName^="topButton"] {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #4f545c, stop:1 #36393f);
+            border: 2px solid #5a6b3b;
+            border-radius: 6px;
+            padding: 12px 20px;
+            font-family: 'Arial', monospace;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+            letter-spacing: 1px;
+            min-width: 120px;
+        }
+
+        QPushButton[objectName^="topButton"]:hover {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #5a6b3b, stop:1 #4f545c);
+            border-color: #9ccc65;
+        }
+
+        QPushButton[objectName^="topButton"]:pressed {
+            background-color: #2f3136;
+        }
+
+        #treeFrame {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #36393f, stop:1 #2f3136);
+            border: 2px solid #5a6b3b;
+            border-radius: 8px;
+        }
+
+        #treeTitle {
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            font-weight: bold;
+            color: #9ccc65;
+            padding: 8px;
+            background-color: rgba(92, 107, 59, 0.3);
+            border: 1px solid #5a6b3b;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        #hierarchyTree {
+            background-color: #1e2124;
+            border: 1px solid #5a6b3b;
+            border-radius: 4px;
+            font-family: 'Times New Roman9+', monospace;
+            font-size: 16px;
+            color: #c5c8c6;
+            selection-background-color: #5a6b3b;
+        }
+
+        #hierarchyTree::item {
+            padding: 4px;
+            border-bottom: 1px solid #36393f;
+        }
+
+        #hierarchyTree::item:selected {
+            background-color: #5a6b3b;
+            color: #ffffff;
+        }
+
+        #statusFrame {
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #36393f, stop:1 #2f3136);
+            border: 2px solid #5a6b3b;
+            border-radius: 8px;
+        }
+
+        #statusTitle {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            color: #9ccc65;
+            padding: 5px;
+            background-color: rgba(92, 107, 59, 0.3);
+            border: 1px solid #5a6b3b;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        #statusLabel {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            font-weight: bold;
+            color: #c5c8c6;
+            text-align: center;
+        }
+
+        QProgressBar {
+            border: 2px solid #5a6b3b;
+            border-radius: 4px;
+            background-color: #1e2124;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        QProgressBar::chunk {
+            background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #4caf50, stop:0.6 #8bc34a, stop:1 #cddc39);
+            border-radius: 2px;
+        }
+
+        #overallStatus {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 5px;
+            background-color: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4caf50;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+        """
+        self.setStyleSheet(style)
+
+
+class MilitaryApplication:
+    def __init__(self):
+        self.app = QApplication(sys.argv)
+        self.app.setApplicationName("Military Command System")
+        self.app.setApplicationVersion("2.1.7")
+
+        # Create windows
+        self.login_window = MilitaryLoginWindow()
+        self.main_window = MilitaryMainWindow()
+
+        # Connect signals
+        self.login_window.login_successful.connect(self.show_main_window)
+
+    def show_main_window(self):
+        """Show main window after successful login"""
+        self.main_window.show()
+        self.main_window.center_window()
+
+    def run(self):
+        """Run the application"""
+        self.login_window.show()
+        return self.app.exec()
+
+
+def main():
+    # Add center_window method to main window
+    def center_window(self):
+        screen = QApplication.primaryScreen().geometry()
+        window = self.geometry()
+        x = (screen.width() - window.width()) // 2
+        y = (screen.height() - window.height()) // 2
+        self.move(x, y)
+
+    # Add method to main window class
+    MilitaryMainWindow.center_window = center_window
+
+    # Create and run application
+    app = MilitaryApplication()
+    sys.exit(app.run())
+
+
+if __name__ == "__main__":
+    main()
