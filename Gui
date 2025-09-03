@@ -1,3 +1,829 @@
+1....
+# app.py
+# Requires: pip install pyside6
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QLineEdit, QFormLayout, QMessageBox,
+    QStackedWidget, QTableWidget, QTableWidgetItem, QSizePolicy
+)
+from PySide6.QtCore import Qt, Slot
+import sys
+
+# ---------- MILITARY COLOR THEME (stylesheet) ----------
+MILITARY_STYLE = """
+QWidget {
+    background-color: #0f1a0f; /* very dark green/black */
+    color: #e6e6d7;            /* off-white / khaki-ish text */
+    font-family: "Segoe UI", Roboto, Arial;
+    font-size: 13px;
+}
+
+/* Buttons */
+QPushButton {
+    background-color: #3a5a3a;  /* army green */
+    border: 2px solid #2b3f2b;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: #f3f1de;
+    min-width: 90px;
+}
+QPushButton:hover {
+    background-color: #4b6b4b;
+}
+QPushButton:pressed {
+    background-color: #2b3f2b;
+}
+
+/* Disabled button */
+QPushButton:disabled {
+    background-color: #2b2b2b;
+    color: #7a7a7a;
+}
+
+/* Titles and labels */
+QLabel#titleLabel {
+    font-size: 18px;
+    font-weight: 700;
+    color: #cfd3b8;
+}
+
+/* Input fields */
+QLineEdit {
+    background-color: #121a12;
+    border: 1px solid #2b3f2b;
+    padding: 6px;
+    border-radius: 6px;
+    color: #e8e9d8;
+}
+
+/* Table */
+QTableWidget {
+    background-color: #0f160f;
+    gridline-color: #2b3f2b;
+    border: 1px solid #2b3f2b;
+}
+QHeaderView::section {
+    background-color: #2b3f2b;
+    color: #f3f1de;
+    padding: 4px;
+    border: 1px solid #1f2b1f;
+}
+
+/* Frames/panels */
+QFrame, QWidget#panel {
+    background-color: rgba(255,255,255,0.02);
+    border-radius: 8px;
+}
+
+/* Bottom control bar */
+#bottomBar {
+    background-color: transparent;
+}
+"""
+
+# ---------- LOGIN DIALOG ----------
+class LoginWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Login - Military GUI")
+        self.setFixedSize(380, 220)
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout()
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(12)
+
+        title = QLabel("Secure Access")
+        title.setObjectName("titleLabel")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        form = QFormLayout()
+        self.username_edit = QLineEdit()
+        self.username_edit.setPlaceholderText("Username")
+        self.password_edit = QLineEdit()
+        self.password_edit.setPlaceholderText("Password")
+        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+
+        form.addRow("Username:", self.username_edit)
+        form.addRow("Password:", self.password_edit)
+
+        layout.addLayout(form)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        login_btn = QPushButton("Login")
+        login_btn.clicked.connect(self.attempt_login)
+        btn_layout.addWidget(login_btn)
+        layout.addLayout(btn_layout)
+
+        self.setLayout(layout)
+
+    @Slot()
+    def attempt_login(self):
+        user = self.username_edit.text().strip()
+        pwd = self.password_edit.text()
+        # Simple demo check: accept admin/admin123 or any non-empty user/pwd (change per your needs)
+        if (user == "admin" and pwd == "admin123") or (user and pwd):
+            self.accepted = True
+            self.close()
+        else:
+            QMessageBox.warning(self, "Login failed", "Invalid credentials. Try 'admin' / 'admin123' or any non-empty credentials.")
+
+# ---------- MAIN APP WINDOW ----------
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Home - Military GUI")
+        self.resize(1000, 640)
+        self._prev_stack = []  # for BACK navigation
+        self._build_ui()
+
+    def _build_ui(self):
+        central = QWidget()
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(8)
+
+        # Top title
+        title = QLabel("Command Console")
+        title.setObjectName("titleLabel")
+        title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        main_layout.addWidget(title)
+
+        # Stacked area (screens)
+        self.stack = QStackedWidget()
+        self.pages = {}
+        self.pages['home'] = self._home_page()
+        self.pages['screen1'] = self._screen_with_side_buttons("Screen 1")
+        self.pages['screen2'] = self._screen_with_side_buttons("Screen 2")
+        self.pages['screen3'] = self._screen_three_tables()
+        self.pages['settings'] = self._settings_page()
+
+        for p in ['home', 'screen1', 'screen2', 'screen3', 'settings']:
+            self.stack.addWidget(self.pages[p])
+
+        main_layout.addWidget(self.stack, 1)
+
+        central.setLayout(main_layout)
+        self.setCentralWidget(central)
+
+        # Start on Home
+        self.current_key = 'home'
+        self._goto('home', add_history=False)
+
+    # ---------- Page factories ----------
+    def _home_page(self):
+        page = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(12)
+
+        label = QLabel("Home")
+        label.setObjectName("titleLabel")
+        layout.addWidget(label, alignment=Qt.AlignTop)
+
+        btns = QWidget()
+        h = QHBoxLayout()
+        h.setSpacing(16)
+        h.setContentsMargins(4, 8, 4, 4)
+
+        btn_screen1 = QPushButton("Screen 1")
+        btn_screen2 = QPushButton("Screen 2")
+        btn_screen3 = QPushButton("Screen 3")
+        btn_settings = QPushButton("Settings")
+
+        btn_screen1.clicked.connect(lambda: self._goto('screen1'))
+        btn_screen2.clicked.connect(lambda: self._goto('screen2'))
+        btn_screen3.clicked.connect(lambda: self._goto('screen3'))
+        btn_settings.clicked.connect(lambda: self._goto('settings'))
+
+        for b in (btn_screen1, btn_screen2, btn_screen3, btn_settings):
+            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            h.addWidget(b)
+
+        btns.setLayout(h)
+        layout.addWidget(btns)
+
+        # Bottom control bar (HOME / BACK) - per requirement: add buttons on each screen
+        bottom = self._bottom_bar()
+        layout.addStretch(1)
+        layout.addWidget(bottom)
+        page.setLayout(layout)
+        return page
+
+    def _screen_with_side_buttons(self, name):
+        """
+        Creates screens 1 and 2: a left column with 4 buttons (button1..4),
+        a central area (placeholder), and bottom HOME/BACK
+        """
+        page = QWidget()
+        root = QVBoxLayout()
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(8)
+
+        title = QLabel(name)
+        title.setObjectName("titleLabel")
+        root.addWidget(title)
+
+        content = QWidget()
+        h = QHBoxLayout()
+        h.setContentsMargins(4, 4, 4, 4)
+        h.setSpacing(12)
+
+        # Left panel with 4 buttons
+        left_panel = QWidget()
+        left_panel.setObjectName("panel")
+        left_layout = QVBoxLayout()
+        left_layout.setContentsMargins(8, 8, 8, 8)
+        left_layout.setSpacing(8)
+        for i in range(1, 5):
+            b = QPushButton(f"button{i}")
+            b.clicked.connect(lambda _, idx=i: self._on_left_button_clicked(name, idx))
+            left_layout.addWidget(b)
+        left_layout.addStretch(1)
+        left_panel.setLayout(left_layout)
+        left_panel.setFixedWidth(160)
+
+        # Central placeholder area
+        center = QWidget()
+        center.setObjectName("panel")
+        center_layout = QVBoxLayout()
+        center_layout.setContentsMargins(12, 12, 12, 12)
+        center_layout.setSpacing(10)
+        center_message = QLabel(f"{name} - main area\n(placeholder content)")
+        center_message.setAlignment(Qt.AlignCenter)
+        center_layout.addWidget(center_message, alignment=Qt.AlignCenter)
+        center.setLayout(center_layout)
+
+        h.addWidget(left_panel)
+        h.addWidget(center, 1)
+        content.setLayout(h)
+
+        root.addWidget(content, 1)
+        root.addWidget(self._bottom_bar())  # HOME/BACK
+        page.setLayout(root)
+        return page
+
+    def _screen_three_tables(self):
+        page = QWidget()
+        root = QVBoxLayout()
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(8)
+
+        title = QLabel("Screen 3 - Events")
+        title.setObjectName("titleLabel")
+        root.addWidget(title)
+
+        # Two tables side-by-side
+        area = QWidget()
+        h = QHBoxLayout()
+        h.setContentsMargins(4, 4, 4, 4)
+        h.setSpacing(12)
+
+        # Active Events table
+        active_table = QTableWidget(0, 3)
+        active_table.setHorizontalHeaderLabels(["ID", "Description", "Priority"])
+        active_table.setObjectName("panel")
+        active_table.setMinimumWidth(420)
+        self._fill_sample_active_events(active_table)
+
+        # History table
+        history_table = QTableWidget(0, 3)
+        history_table.setHorizontalHeaderLabels(["ID", "Action", "Timestamp"])
+        history_table.setObjectName("panel")
+        history_table.setMinimumWidth(420)
+        self._fill_sample_history(history_table)
+
+        h.addWidget(active_table, 1)
+        h.addWidget(history_table, 1)
+        area.setLayout(h)
+
+        root.addWidget(area, 1)
+        root.addWidget(self._bottom_bar())
+        page.setLayout(root)
+
+        # store pointers if needed later
+        page.active_table = active_table
+        page.history_table = history_table
+        return page
+
+    def _settings_page(self):
+        page = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(6,6,6,6)
+        layout.setSpacing(12)
+        title = QLabel("Settings")
+        title.setObjectName("titleLabel")
+        layout.addWidget(title)
+
+        label = QLabel("Settings placeholder. Add your controls here.")
+        label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        layout.addWidget(label)
+
+        layout.addStretch(1)
+        layout.addWidget(self._bottom_bar())
+        page.setLayout(layout)
+        return page
+
+    def _bottom_bar(self):
+        """
+        Returns a widget with HOME and BACK buttons. HOME always goes to home.
+        BACK navigates to previous visited screen (if any).
+        """
+        bar = QWidget()
+        bar.setObjectName("bottomBar")
+        h = QHBoxLayout()
+        h.setContentsMargins(4, 4, 4, 4)
+        h.setSpacing(8)
+
+        h.addStretch()
+        home_btn = QPushButton("HOME")
+        back_btn = QPushButton("BACK")
+        home_btn.setFixedWidth(110)
+        back_btn.setFixedWidth(110)
+        home_btn.clicked.connect(lambda: self._goto('home', add_history=False))
+        back_btn.clicked.connect(self._back)
+
+        # We'll enable/disable BACK depending on history
+        bar.home_btn = home_btn
+        bar.back_btn = back_btn
+
+        h.addWidget(back_btn)
+        h.addWidget(home_btn)
+        bar.setLayout(h)
+        return bar
+
+    # ---------- Helpers ----------
+    def _index_of(self, key):
+        keys = ['home', 'screen1', 'screen2', 'screen3', 'settings']
+        try:
+            return keys.index(key)
+        except ValueError:
+            return 0
+
+    def _goto(self, key, add_history=True):
+        """
+        Navigate to page by key. If add_history is True, push current page to history stack.
+        """
+        if key == self.current_key:
+            return
+
+        if add_history and getattr(self, 'current_key', None):
+            # push previous page key onto stack
+            self._prev_stack.append(self.current_key)
+
+        # switch page
+        index = self._index_of(key)
+        self.stack.setCurrentIndex(index)
+        self.current_key = key
+
+        # update bottom bars' BACK enabled/disabled across pages
+        self._update_bottom_buttons()
+
+    def _back(self):
+        if self._prev_stack:
+            prev = self._prev_stack.pop()
+            # go to previous without saving the current into history again
+            self._goto(prev, add_history=False)
+        else:
+            # nothing to go back to
+            QMessageBox.information(self, "Back", "No previous screen in history.")
+
+    def _update_bottom_buttons(self):
+        # Find bottom bars in current page and enable/disable BACK
+        cur_widget = self.stack.currentWidget()
+        for child in cur_widget.findChildren(QWidget):
+            if getattr(child, "objectName", None) == "bottomBar" or child.objectName() == "bottomBar":
+                back_btn = getattr(child, "back_btn", None)
+                if back_btn:
+                    back_btn.setEnabled(bool(self._prev_stack))
+        # Additionally disable HOME when already at home
+        if self.current_key == 'home':
+            # disable HOME on the home page(s) bottom bar(s)
+            cur_widget = self.stack.currentWidget()
+            for child in cur_widget.findChildren(QWidget):
+                if child.objectName() == "bottomBar":
+                    if getattr(child, "home_btn", None):
+                        child.home_btn.setEnabled(False)
+        else:
+            # enable home buttons
+            for page in [self.pages[k] for k in self.pages]:
+                for child in page.findChildren(QWidget):
+                    if child.objectName() == "bottomBar":
+                        if getattr(child, "home_btn", None):
+                            child.home_btn.setEnabled(True)
+
+    def _on_left_button_clicked(self, screen_name, button_idx):
+        QMessageBox.information(self, f"{screen_name} button", f"You pressed {screen_name} -> button{button_idx}")
+
+    def _fill_sample_active_events(self, table: QTableWidget):
+        sample = [
+            ("A100", "Sensor alert: threshold", "High"),
+            ("A101", "Comm. lost with node 4", "Critical"),
+            ("A102", "Battery low on unit 9", "Medium"),
+        ]
+        table.setRowCount(len(sample))
+        for r, row in enumerate(sample):
+            for c, val in enumerate(row):
+                table.setItem(r, c, QTableWidgetItem(str(val)))
+
+    def _fill_sample_history(self, table: QTableWidget):
+        sample = [
+            ("H500", "Rebooted unit 2", "2025-08-20 13:45"),
+            ("H501", "Firmware update", "2025-07-11 09:12"),
+            ("H502", "Manual override", "2025-06-04 18:02"),
+        ]
+        table.setRowCount(len(sample))
+        for r, row in enumerate(sample):
+            for c, val in enumerate(row):
+                table.setItem(r, c, QTableWidgetItem(str(val)))
+
+# ---------- Application Entrypoint ----------
+def main():
+    app = QApplication(sys.argv)
+    app.setStyleSheet(MILITARY_STYLE)
+
+    login = LoginWindow()
+    login.show()
+    # exec a local event loop until login closes
+    loop_ok = True
+    # We will run the main Qt event loop and allow the login to close when done,
+    # but to keep it simple we just block here until the login window is closed.
+    # (Alternatively, implement a QDialog and call exec())
+    app.exec()  # run until login window closed
+
+    # If login was closed and we set accepted flag, proceed. For simplicity,
+    # treat any close with accepted True as successful login; else exit.
+    accepted = getattr(login, "accepted", False)
+    if not accepted:
+        # user closed login or failed — we won't open the main window
+        return
+
+    # create main window and show
+    main_win = MainWindow()
+    main_win.show()
+    sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2...
+
+# app_pyside6_with_plots_and_fallback.py
+# Works with or without matplotlib. If missing, you can install from the app.
+import sys
+import random
+import subprocess
+import threading
+from pathlib import Path
+from datetime import datetime
+
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QLineEdit, QFormLayout, QMessageBox,
+    QStackedWidget, QTableWidget, QTableWidgetItem, QSizePolicy,
+    QDialog, QFileDialog
+)
+from PySide6.QtCore import Qt, Slot
+
+# Try importing matplotlib; if not available provide a fallback UI
+HAVE_MPL = True
+try:
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+    from matplotlib.figure import Figure
+except Exception:
+    HAVE_MPL = False
+
+# ---------- MILITARY COLOR THEME ----------
+MILITARY_STYLE = """
+QWidget {
+    background-color: #0f1a0f;
+    color: #e6e6d7;
+    font-family: "Segoe UI", Roboto, Arial;
+    font-size: 13px;
+}
+QPushButton {
+    background-color: #3a5a3a;
+    border: 2px solid #2b3f2b;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: #f3f1de;
+    min-width: 90px;
+}
+QPushButton:hover { background-color: #4b6b4b; }
+QLabel#titleLabel { font-size: 18px; font-weight: 700; color: #cfd3b8; }
+QLineEdit { background-color: #121a12; border: 1px solid #2b3f2b; padding: 6px; border-radius: 6px; color: #e8e9d8; }
+QTableWidget { background-color: #0f160f; gridline-color: #2b3f2b; border: 1px solid #2b3f2b; }
+QFrame, QWidget#panel { background-color: rgba(255,255,255,0.02); border-radius: 8px; }
+#bottomBar { background-color: transparent; }
+"""
+
+# ---------- Login Dialog ----------
+class LoginDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Login - Military GUI")
+        self.setFixedSize(380, 220)
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout()
+        layout.setContentsMargins(20,18,20,18)
+        title = QLabel("Secure Access")
+        title.setObjectName("titleLabel")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        form = QFormLayout()
+        self.username_edit = QLineEdit(); self.username_edit.setPlaceholderText("Username")
+        self.password_edit = QLineEdit(); self.password_edit.setPlaceholderText("Password"); self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        form.addRow("Username:", self.username_edit)
+        form.addRow("Password:", self.password_edit)
+        layout.addLayout(form)
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        login_btn = QPushButton("Login"); login_btn.clicked.connect(self.attempt_login)
+        btn_layout.addWidget(login_btn)
+        layout.addLayout(btn_layout)
+        self.setLayout(layout)
+
+    @Slot()
+    def attempt_login(self):
+        user = self.username_edit.text().strip(); pwd = self.password_edit.text()
+        if (user == "admin" and pwd == "admin123") or (user and pwd):
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Login failed", "Invalid credentials.")
+
+# ---------- plotting / fallback widgets ----------
+def make_plot_canvas(kind="line"):
+    """Return a widget: either a matplotlib canvas (if available) or a fallback widget with install button."""
+    if HAVE_MPL:
+        fig = Figure(figsize=(5,3), tight_layout=True)
+        ax = fig.add_subplot(111)
+        if kind == "line":
+            x = list(range(1,21))
+            y = [random.uniform(0,1) + 0.5*(i/20) for i in x]
+            ax.plot(x,y,marker='o'); ax.set_title("Random Line Data")
+        elif kind == "bar":
+            labels = [f"C{i}" for i in range(1,7)]; vals = [random.randint(1,30) for _ in labels]
+            ax.bar(labels, vals); ax.set_title("Random Bar Data")
+        elif kind == "scatter":
+            xs = [random.random() for _ in range(50)]; ys=[random.random() for _ in range(50)]
+            ax.scatter(xs,ys,alpha=0.7); ax.set_title("Random Scatter")
+        canvas = FigureCanvas(fig)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        return canvas
+    else:
+        # Fallback widget with message + install button
+        w = QWidget()
+        l = QVBoxLayout(); l.setAlignment(Qt.AlignCenter)
+        msg = QLabel("matplotlib not installed.\nInstall to view plots inside the app.")
+        msg.setAlignment(Qt.AlignCenter)
+        btn = QPushButton("Install matplotlib (requires internet)")
+        def run_install():
+            btn.setEnabled(False); btn.setText("Installing... (may take a minute)")
+            def target():
+                try:
+                    proc = subprocess.run([sys.executable, "-m", "pip", "install", "matplotlib"], capture_output=True, text=True)
+                    ok = proc.returncode == 0
+                    # need to inform user to restart if success
+                    if ok:
+                        QMessageBox.information(w, "Installed", "matplotlib installed successfully.\nPlease restart the application.")
+                    else:
+                        QMessageBox.critical(w, "Install failed", f"Return code {proc.returncode}\n\n{proc.stderr[:1000]}")
+                except Exception as e:
+                    QMessageBox.critical(w, "Error", str(e))
+                finally:
+                    btn.setEnabled(True); btn.setText("Install matplotlib (requires internet)")
+            threading.Thread(target=target, daemon=True).start()
+        btn.clicked.connect(run_install)
+        l.addWidget(msg); l.addWidget(btn)
+        w.setLayout(l)
+        w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        return w
+
+# ---------- Main App (keeps previous behaviour) ----------
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Home - Military GUI")
+        self.resize(1000,640)
+        self._prev_stack = []
+        self._build_ui()
+
+    def _build_ui(self):
+        central = QWidget(); main_layout = QVBoxLayout(); main_layout.setContentsMargins(12,12,12,12); main_layout.setSpacing(8)
+        title_row = QHBoxLayout()
+        title = QLabel("Command Console"); title.setObjectName("titleLabel"); title.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+        title_row.addWidget(title); title_row.addStretch()
+        logout_btn = QPushButton("Logout"); logout_btn.setFixedWidth(96); logout_btn.clicked.connect(self._on_logout_clicked)
+        title_row.addWidget(logout_btn)
+        main_layout.addLayout(title_row)
+
+        self.stack = QStackedWidget(); self.pages = {}
+        self.pages['home'] = self._home_page()
+        self.pages['screen1'] = self._screen_with_side_buttons("Screen 1")
+        self.pages['screen2'] = self._screen_with_side_buttons("Screen 2")
+        self.pages['screen3'] = self._screen_three_tables()
+        self.pages['settings'] = self._settings_page()
+        for p in ['home','screen1','screen2','screen3','settings']:
+            self.stack.addWidget(self.pages[p])
+        main_layout.addWidget(self.stack,1)
+        central.setLayout(main_layout); self.setCentralWidget(central)
+        self.current_key = 'home'; self._goto('home', add_history=False)
+
+    def _home_page(self):
+        page = QWidget(); layout = QVBoxLayout(); layout.setContentsMargins(6,6,6,6); layout.setSpacing(12)
+        label = QLabel("Home"); label.setObjectName("titleLabel"); layout.addWidget(label, alignment=Qt.AlignTop)
+        btns = QWidget(); h = QHBoxLayout(); h.setSpacing(16); h.setContentsMargins(4,8,4,4)
+        btn_screen1 = QPushButton("Screen 1"); btn_screen2 = QPushButton("Screen 2"); btn_screen3 = QPushButton("Screen 3"); btn_settings = QPushButton("Settings")
+        btn_screen1.clicked.connect(lambda: self._goto('screen1')); btn_screen2.clicked.connect(lambda: self._goto('screen2'))
+        btn_screen3.clicked.connect(lambda: self._goto('screen3')); btn_settings.clicked.connect(lambda: self._goto('settings'))
+        for b in (btn_screen1, btn_screen2, btn_screen3, btn_settings):
+            b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed); h.addWidget(b)
+        btns.setLayout(h); layout.addWidget(btns)
+        layout.addStretch(1); layout.addWidget(self._bottom_bar(centered=True)); page.setLayout(layout); return page
+
+    def _screen_with_side_buttons(self, name):
+        page = QWidget(); root = QVBoxLayout(); root.setContentsMargins(6,6,6,6); root.setSpacing(8)
+        title = QLabel(name); title.setObjectName("titleLabel"); root.addWidget(title)
+        content = QWidget(); h = QHBoxLayout(); h.setContentsMargins(4,4,4,4); h.setSpacing(12)
+        left_panel = QWidget(); left_panel.setObjectName("panel"); left_layout = QVBoxLayout(); left_layout.setContentsMargins(8,8,8,8); left_layout.setSpacing(12)
+        for i in range(1,5):
+            b = QPushButton(f"button{i}"); b.clicked.connect(lambda _, idx=i, nm=name: self._on_left_button_clicked(nm, idx)); b.setFixedHeight(46); left_layout.addWidget(b)
+        left_layout.addStretch(1); left_panel.setLayout(left_layout); left_panel.setFixedWidth(180)
+        center = QWidget(); center.setObjectName("panel"); center_layout = QVBoxLayout(); center_layout.setContentsMargins(12,12,12,12); center_layout.setSpacing(10)
+        center_message = QLabel(f"{name} - main area\n(placeholder content)"); center_message.setAlignment(Qt.AlignCenter); center_layout.addWidget(center_message, alignment=Qt.AlignCenter)
+        center.setLayout(center_layout)
+        page.left_panel = left_panel; page.center = center; page.center_layout = center_layout; page.center_message = center_message
+        h.addWidget(left_panel); h.addWidget(center,1); content.setLayout(h)
+        root.addWidget(content,1); root.addWidget(self._bottom_bar(centered=True)); page.setLayout(root); return page
+
+    def _screen_three_tables(self):
+        page = QWidget(); root = QVBoxLayout(); root.setContentsMargins(6,6,6,6); root.setSpacing(8)
+        title = QLabel("Screen 3 - Events"); title.setObjectName("titleLabel"); root.addWidget(title)
+        area = QWidget(); h = QHBoxLayout(); h.setContentsMargins(4,4,4,4); h.setSpacing(12)
+        active_table = QTableWidget(0,3); active_table.setHorizontalHeaderLabels(["ID","Description","Priority"]); active_table.setObjectName("panel"); active_table.setMinimumWidth(420); self._fill_sample_active_events(active_table)
+        history_table = QTableWidget(0,3); history_table.setHorizontalHeaderLabels(["ID","Action","Timestamp"]); history_table.setObjectName("panel"); history_table.setMinimumWidth(420); self._fill_sample_history(history_table)
+        h.addWidget(active_table,1); h.addWidget(history_table,1); area.setLayout(h)
+        root.addWidget(area,1); root.addWidget(self._bottom_bar(centered=True)); page.setLayout(root)
+        page.active_table = active_table; page.history_table = history_table; return page
+
+    def _settings_page(self):
+        page = QWidget(); layout = QVBoxLayout(); layout.setContentsMargins(6,6,6,6); layout.setSpacing(12)
+        title = QLabel("Settings"); title.setObjectName("titleLabel"); layout.addWidget(title)
+        label = QLabel("Settings placeholder. Add your controls here."); label.setAlignment(Qt.AlignTop|Qt.AlignLeft); layout.addWidget(label)
+        layout.addStretch(1); layout.addWidget(self._bottom_bar(centered=True)); page.setLayout(layout); return page
+
+    def _bottom_bar(self, centered=False):
+        bar = QWidget(); bar.setObjectName("bottomBar"); h = QHBoxLayout(); h.setContentsMargins(4,4,4,4); h.setSpacing(12)
+        if centered:
+            h.addStretch()
+            back_btn = QPushButton("BACK"); home_btn = QPushButton("HOME"); back_btn.setFixedWidth(140); home_btn.setFixedWidth(140)
+            back_btn.clicked.connect(self._back); home_btn.clicked.connect(lambda: self._goto('home', add_history=False))
+            h.addWidget(back_btn); h.addSpacing(24); h.addWidget(home_btn); h.addStretch()
+        else:
+            h.addStretch()
+            back_btn = QPushButton("BACK"); home_btn = QPushButton("HOME"); back_btn.setFixedWidth(110); home_btn.setFixedWidth(110)
+            back_btn.clicked.connect(self._back); home_btn.clicked.connect(lambda: self._goto('home', add_history=False))
+            h.addWidget(back_btn); h.addWidget(home_btn)
+        bar.home_btn = home_btn; bar.back_btn = back_btn; bar.setLayout(h); return bar
+
+    def _index_of(self, key):
+        keys = ['home','screen1','screen2','screen3','settings']
+        try: return keys.index(key)
+        except ValueError: return 0
+
+    def _goto(self, key, add_history=True):
+        if key == self.current_key: return
+        if add_history and getattr(self,'current_key',None): self._prev_stack.append(self.current_key)
+        index = self._index_of(key); self.stack.setCurrentIndex(index); self.current_key = key; self._update_bottom_buttons()
+
+    def _back(self):
+        if self._prev_stack:
+            prev = self._prev_stack.pop(); self._goto(prev, add_history=False)
+        else:
+            QMessageBox.information(self, "Back", "No previous screen in history.")
+
+    def _update_bottom_buttons(self):
+        cur_widget = self.stack.currentWidget()
+        for child in cur_widget.findChildren(QWidget):
+            if getattr(child,'objectName',None) == "bottomBar" or child.objectName()=="bottomBar":
+                back_btn = getattr(child, "back_btn", None)
+                if back_btn:
+                    back_btn.setEnabled(bool(self._prev_stack))
+        if self.current_key == 'home':
+            cur_widget = self.stack.currentWidget()
+            for child in cur_widget.findChildren(QWidget):
+                if child.objectName()=="bottomBar":
+                    if getattr(child,"home_btn",None): child.home_btn.setEnabled(False)
+        else:
+            for page in [self.pages[k] for k in self.pages]:
+                for child in page.findChildren(QWidget):
+                    if child.objectName()=="bottomBar":
+                        if getattr(child,"home_btn",None): child.home_btn.setEnabled(True)
+
+    def _on_left_button_clicked(self, screen_name, button_idx):
+        cur_widget = self.stack.currentWidget()
+        center_layout = getattr(cur_widget, "center_layout", None)
+        if center_layout is None:
+            QMessageBox.information(self, "Action", f"You pressed {screen_name} -> button{button_idx}")
+            return
+        while center_layout.count():
+            item = center_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.setParent(None); widget.deleteLater()
+        choice = random.choice(["line","bar","scatter","table","text"])
+        if choice in ("line","bar","scatter"):
+            canvas = make_plot_canvas(kind=choice)
+            center_layout.addWidget(canvas)
+        elif choice == "table":
+            table = QTableWidget(5,3); table.setHorizontalHeaderLabels(["Col A","Col B","Col C"])
+            for r in range(5):
+                for c in range(3):
+                    table.setItem(r,c,QTableWidgetItem(str(random.randint(0,999))))
+            table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            center_layout.addWidget(table)
+        else:
+            txt = QLabel(); txt.setWordWrap(True)
+            sample = [f"Status report: OK — {random.randint(0,100)} events processed.",
+                      f"Latency sample: {random.uniform(0.5,20.0):.2f} ms (avg).",
+                      f"Sensor summary: mean={random.uniform(10,50):.2f}, std={random.uniform(0.1,5):.2f}.",
+                      "Image preview placeholder (no image loaded)."]
+            txt.setText(random.choice(sample)); txt.setAlignment(Qt.AlignCenter); center_layout.addWidget(txt)
+
+    def _on_logout_clicked(self):
+        dlg = QMessageBox(self); dlg.setIcon(QMessageBox.Question); dlg.setWindowTitle("Logout")
+        dlg.setText("Do you want to logout and return to login screen?"); dlg.setStandardButtons(QMessageBox.Yes|QMessageBox.No)
+        res = dlg.exec()
+        if res == QMessageBox.Yes:
+            self.hide()
+            login = LoginDialog(self)
+            if login.exec() == QDialog.Accepted:
+                self._prev_stack.clear(); self._goto('home', add_history=False); self.show()
+            else:
+                QApplication.instance().quit()
+
+    def _fill_sample_active_events(self, table: QTableWidget):
+        sample = [("A100","Sensor alert: threshold","High"),("A101","Comm. lost with node 4","Critical"),("A102","Battery low on unit 9","Medium")]
+        table.setRowCount(len(sample))
+        for r,row in enumerate(sample):
+            for c,val in enumerate(row):
+                table.setItem(r,c,QTableWidgetItem(str(val)))
+
+    def _fill_sample_history(self, table: QTableWidget):
+        sample = [("H500","Rebooted unit 2","2025-08-20 13:45"),("H501","Firmware update","2025-07-11 09:12"),("H502","Manual override","2025-06-04 18:02")]
+        table.setRowCount(len(sample))
+        for r,row in enumerate(sample):
+            for c,val in enumerate(row):
+                table.setItem(r,c,QTableWidgetItem(str(val)))
+
+# Entrypoint
+def main():
+    app = QApplication(sys.argv)
+    app.setStyleSheet(MILITARY_STYLE)
+    login = LoginDialog()
+    if login.exec() != QDialog.Accepted:
+        return
+    win = MainWindow(); win.show(); sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import sys
 import random
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
